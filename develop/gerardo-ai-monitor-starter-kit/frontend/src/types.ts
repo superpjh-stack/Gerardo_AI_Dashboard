@@ -1,3 +1,11 @@
+export type Cost = {
+  estimated_api_equivalent: number | null;
+  upper_usd: number | null;
+  status: string;
+  included_count: number;
+  missing_count: number;
+  price_as_of: string;
+};
 export type Provider = "claude" | "codex" | "antigravity";
 export type Usage = {
   input_tokens: number | null;
@@ -30,6 +38,7 @@ export type Tool = {
   name: string;
   source: Source;
   usage: Usage;
+  cost: Cost;
   sessions: number;
   latest: string | null;
   models: string[];
@@ -47,6 +56,7 @@ export type Task = {
   event_count: number;
   tool_count: number;
   usage: Usage;
+  cost: Cost;
   status: string;
   synthetic: boolean;
 };
@@ -54,6 +64,7 @@ export type Project = {
   id: string;
   name: string;
   usage: Usage;
+  cost: Cost;
   sessions: number;
   providers: Provider[];
 };
@@ -76,6 +87,7 @@ export type Event = {
 };
 export type Overview = {
   usage: Usage;
+  cost: Cost;
   sessions: number;
   confirmed: number;
   pending: number;
@@ -83,6 +95,9 @@ export type Overview = {
   tasks: Task[];
   projects: Project[];
   series: Point[];
+  cost_series: ({ date: string } & Record<Provider, Cost>)[];
+  pricing_sources: Record<string, string>;
+  pricing_rates: Record<string, (number | null)[]>;
   coverage: {
     providers_with_usage: number;
     providers_total: number;

@@ -38,3 +38,12 @@
 - 모바일 하단 메뉴·큰 글자/터치 영역·세로 필터·활동 카드·상세 스크롤 및 로그인 폭 개선.
 - 검증: TypeScript/Vite 빌드, 25개 백엔드 회귀 테스트, Chrome 로컬 프레임에서 모바일/태블릿/데스크톱 폭과 가로 넘침 확인.
 - 검증용 서버·데이터는 .local에만 생성. 운영 인증·개인 기록·전송 설정은 유지.
+
+## COST-001 · Codex · 2026-10-31
+- 요청: 세 도구의 토큰과 통계적인 비용 표시.
+- 변경: backend/monitor/pricing.py와 service.py/app.py, frontend types/App/styles, test_pricing.py.
+- 공식 OpenAI·Anthropic·Google 단가 스냅샷, 정확한 모델 ID 매칭, 캐시 포함/제외 처리, 캐시 쓰기 범위 추정.
+- 대시보드 합계, 도구·프로젝트·세션별 비용, 사용량 화면의 일별 통계·단가·공식 출처.
+- 실제 청구/구독료 미연동. Antigravity 미수집은 null. 알려지지 않은 모델은 산정 제외.
+- 검증: pytest 30개 통과, frontend production build 성공. Chrome 제어 연속 시간 초과로 이번 실화면 QA 미완료.
+- 가격 기준일 고정이며 자동 갱신하지 않는다. 장문/고속 할증·세금·할인·도구/저장 비용 제외를 UI에 명시.

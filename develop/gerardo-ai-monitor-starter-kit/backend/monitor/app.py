@@ -192,7 +192,7 @@ def create_app(store=None):
     @app.get('/api/v1/usage')
     def usage(period: Literal['today','week','month','all']='today', project: str='all', provider: str='all', demo: bool=False):
         data = get_overview(period, project, provider, demo, None, None)
-        return {k: data[k] for k in ('usage','series','providers','coverage','period')}
+        return {k: data[k] for k in ('usage','cost','cost_series','pricing_sources','pricing_rates','series','providers','coverage','period')}
 
     @app.get('/api/v1/projects')
     def projects(demo: bool=False):

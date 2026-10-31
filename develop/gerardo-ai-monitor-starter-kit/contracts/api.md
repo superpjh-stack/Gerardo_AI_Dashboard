@@ -35,3 +35,11 @@ POST `/transfer/batch`: 허용 필드 이벤트 250개 이하, 전체 요청 2Mi
 POST `/transfer/finish`: 기기/업로드 ID·전체 개수·정렬된 payload SHA256·소스 상태 3종을 검증한 뒤 원자 반영.
 잘못된 스키마 422, 인증 실패 401, 기기 불일치 403, 스냅샷 불일치 409. 미완료 전송은 기존 기록을 변경하지 않는다.
 서버는 노트북 소스를 직접 수집하지 않는다. 로컬 sync 요청은 409와 안내 문구를 반환한다.
+
+## 비용 추정 · 2026-10-31
+`overview`와 `usage`는 cost, cost_series, pricing_sources, pricing_rates를 추가 반환한다.
+도구·프로젝트·세션에도 cost를 제공한다. cost.estimated_api_equivalent는 USD 하단 추정,
+upper_usd는 캐시 쓰기 보관 시간에 따른 상단 추정이며 included_count/missing_count/reasons로 범위를 알린다.
+모델·토큰·캐시 의미가 불명확하면 해당 사용 기록 전체를 제외한다. 산정 기록이 없으면 null이다.
+actual_api_cost와 subscription_cost는 미연동 null. 단가는 2026-10-31 표준 API 스냅샷이며
+역사적 청구액이나 서비스별 구독 결제액을 재현하지 않는다. 이벤트·원격 전송 계약은 변경하지 않는다.

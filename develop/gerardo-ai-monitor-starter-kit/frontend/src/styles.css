@@ -1985,3 +1985,19 @@ td:first-child {
     scroll-behavior: auto !important;
   }
 }
+
+/* Cost estimates remain readable in narrow cards and scroll only inside tables. */
+.cost-panel { margin-bottom: 20px; min-width: 0; }
+.cost-line { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; padding: 14px 0; border-top: 1px solid var(--border, #2d3a50); }
+.cost-line > span, .cost-line small, .cost-note { color: #aebbd0; font-size: 13px; }
+.cost-line strong { color: #79d9bc; font-size: 17px; overflow-wrap: anywhere; }
+.cost-line small { width: 100%; }
+.cost-note { line-height: 1.75; margin: 4px 0 18px; }
+.cost-panel > .cost-line strong { font-size: clamp(22px, 4vw, 32px); }
+.cost-table { max-width: 100%; overflow-x: auto; margin: 12px 0; }
+.cost-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.cost-table th, .cost-table td { text-align: left; white-space: nowrap; padding: 12px; border-bottom: 1px solid #2d3a50; }
+.cost-panel summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
+.cost-sources { display: flex; flex-wrap: wrap; gap: 16px; }
+.cost-sources a { color: #79d9bc; padding: 12px 0; }
+@media (max-width: 720px) { .cost-line strong { font-size: 16px; } .cost-panel { padding: 16px; } }

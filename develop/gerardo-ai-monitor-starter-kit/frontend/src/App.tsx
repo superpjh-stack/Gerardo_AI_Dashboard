@@ -31,6 +31,7 @@ import {
   Zap,
 } from "lucide-react";
 import type {
+  Cost,
   Detail,
   Overview,
   Point,
@@ -233,6 +234,26 @@ function Chart({
     </div>
   );
 }
+const usd = (value: number | null) => value === null ? "미수집" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+function costText(cost: Cost) {
+  if (cost.estimated_api_equivalent === null) return "산정 불가";
+  return usd(cost.estimated_api_equivalent) + (cost.upper_usd !== cost.estimated_api_equivalent ? ` ~ ${usd(cost.upper_usd)}` : "");
+}
+function CostLine({ cost }: { cost: Cost }) {
+  return <div className="cost-line"><span>API 환산 추정액</span><strong>{costText(cost)}</strong><small>{cost.included_count ? `${cost.included_count.toLocaleString()}건 산정${cost.missing_count ? ` · ${cost.missing_count.toLocaleString()}건 제외 (부분 합계)` : ""}` : cost.missing_count ? "모델·단가·토큰 정보 확인 필요" : "사용량 미수집"}</small></div>;
+}
+function CostPanel({ data, detailed = false }: { data: Overview; detailed?: boolean }) {
+  return <section className="panel cost-panel">
+    <div className="panel-heading"><div><h2>토큰으로 보는 예상 비용</h2><p>선택한 기간·프로젝트·도구 기준 · USD</p></div></div>
+    <CostLine cost={data.cost} />
+    <p className="cost-note">{data.cost.price_as_of} 공식 표준 단가로 환산한 참고 금액입니다. 과거 청구액 재현이 아니며, 실제 청구액·월 구독료는 미연동입니다. 캐시 쓰기는 보관 시간에 따른 범위로 표시합니다. 장문·고속 처리 할증, 도구·저장 비용, 세금과 할인은 제외됩니다.</p>
+    {detailed && <>
+      <div className="cost-table" role="region" aria-label="도구별 비용 통계" tabIndex={0}><table><thead><tr><th>도구</th><th>수집 토큰</th><th>API 환산 추정액</th><th>산정 / 제외 기록</th></tr></thead><tbody>{data.providers.map(tool => <tr key={tool.id}><th>{tool.name}</th><td>{integer(tool.usage.total_tokens)}</td><td>{costText(tool.cost)}</td><td>{tool.cost.included_count} / {tool.cost.missing_count}</td></tr>)}</tbody></table></div>
+      <details><summary>일별 예상 비용 (최근 최대 62일)</summary><div className="cost-table" role="region" aria-label="일별 비용 통계" tabIndex={0}><table><thead><tr><th>날짜</th>{Object.values(names).map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{data.cost_series.map(point => <tr key={point.date}><th>{point.date}</th>{(Object.keys(names) as Provider[]).map(id => <td key={id}>{costText(point[id])}{point[id].missing_count > 0 && " (제외 기록 있음)"}</td>)}</tr>)}</tbody></table></div></details>
+      <details><summary>적용 단가와 공식 출처</summary><p className="cost-note">100만 토큰당 USD · 표준 처리 기준. GPT-5.6 Sol과 Gemini 4 Argon은 기준일의 프로모션 단가입니다. 지원 목록에 없는 모델은 산정에서 제외합니다.</p><div className="cost-table" role="region" aria-label="모델별 단가" tabIndex={0}><table><thead><tr><th>모델</th><th>입력</th><th>출력</th><th>캐시 읽기</th><th>캐시 쓰기 (단기 / 장기)</th></tr></thead><tbody>{Object.entries(data.pricing_rates).map(([model, rate]) => <tr key={model}><th>{model}</th>{rate.slice(0,3).map((r,i) => <td key={i}>{usd(r)}</td>)}<td>{rate[3] === null ? "미지원" : `${usd(rate[3])} / ${usd(rate[4])}`}</td></tr>)}</tbody></table></div><div className="cost-sources">{Object.entries(data.pricing_sources).map(([name,url]) => <a key={name} href={url} target="_blank" rel="noreferrer">{name} 공식 요금표 ↗</a>)}</div></details>
+    </>}
+  </section>;
+}
 function ToolCard({ tool, onClick }: { tool: Tool; onClick: () => void }) {
   return (
     <button className={`tool-card ${tool.id}`} onClick={onClick}>
@@ -263,6 +284,7 @@ function ToolCard({ tool, onClick }: { tool: Tool; onClick: () => void }) {
           </strong>
         </div>
       </div>
+      <CostLine cost={tool.cost} />
       <div className="tool-bottom">
         <Clock3 size={12} />
         <span>
@@ -311,6 +333,7 @@ function TaskRows({
               {compact(task.usage.total_tokens)}
               <small> tokens</small>
             </strong>
+            <span>추정 {costText(task.cost)}</span>
             <span
               className={task.status === "user_confirmed" ? "confirmed" : ""}
             >
@@ -414,6 +437,7 @@ function SessionDialog({
           <span>이 조회 기간에 수집된 토큰</span>
           <strong>{integer(task.usage.total_tokens)}</strong>
         </div>
+        <CostLine cost={task.cost} />
         <div className="token-breakdown">
           <div>
             <span>입력</span>
@@ -1015,6 +1039,7 @@ export default function App() {
                         </span>
                       </div>
                     </section>
+                    <CostPanel data={data} />
                     <div className="stats-grid">
                       <div className="stat">
                         <div>
@@ -1234,6 +1259,7 @@ export default function App() {
                           </div>
                           <h2>{p.name}</h2>
                           <p>{p.sessions}개의 작업 세션이 연결되어 있습니다.</p>
+                          <CostLine cost={p.cost} />
                           <div className="project-total">
                             <span>수집된 토큰</span>
                             <strong>{compact(p.usage.total_tokens)}</strong>
@@ -1256,6 +1282,7 @@ export default function App() {
                 )}
                 {path === "/usage" && (
                   <>
+                    <CostPanel data={data} detailed />
                     <div className="usage-summary">
                       <div>
                         <span className="eyebrow">COLLECTED USAGE</span>

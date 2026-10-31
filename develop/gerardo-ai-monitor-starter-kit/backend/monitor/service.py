@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from .adapters import FIELDS, uid
 from .store import NAMES
+from .pricing import costs, SOURCES, RATES
 
 KST = ZoneInfo('Asia/Seoul')
 
@@ -51,7 +52,7 @@ def overview(events, sources, confirmations, period='today', project='all', prov
             summary=' · '.join(f'{name} {count}회' for name, count in tools.most_common(3)) or '모델 사용 기록이 수집되었습니다.',
             model=next((e.get('model') for e in reversed(group) if e.get('model')), None),
             occurred_at=last['occurred_at'], started_at=group[0]['occurred_at'],
-            event_count=len(group), tool_count=sum(tools.values()), usage=totals(group),
+            event_count=len(group), tool_count=sum(tools.values()), usage=totals(group), cost=costs(group),
             status='user_confirmed' if task_id in confirmations else 'recorded',
             synthetic=last.get('synthetic', False)))
     tasks.sort(key=lambda t: t['occurred_at'], reverse=True)
@@ -59,7 +60,7 @@ def overview(events, sources, confirmations, period='today', project='all', prov
     for key, name in NAMES.items():
         group = [e for e in selected if e['provider'] == key]
         source = next(s for s in sources if s['id'] == key)
-        providers.append(dict(id=key, name=name, source=source, usage=totals(group),
+        providers.append(dict(id=key, name=name, source=source, usage=totals(group), cost=costs(group),
             sessions=sum(t['provider'] == key for t in tasks),
             latest=max((e['occurred_at'] for e in group), default=None),
             models=list(dict.fromkeys(e['model'] for e in reversed(group) if e.get('model')))))
@@ -82,14 +83,15 @@ def overview(events, sources, confirmations, period='today', project='all', prov
     projects = []
     for project_id in {e['project_id'] for e in selected}:
         group = [e for e in selected if e['project_id'] == project_id]
-        projects.append({'id': project_id, 'name': group[0]['project'], 'usage': totals(group),
+        projects.append({'id': project_id, 'name': group[0]['project'], 'usage': totals(group), 'cost': costs(group),
             'sessions': sum(t['project_id'] == project_id for t in tasks),
             'providers': sorted(set(e['provider'] for e in group))})
     projects.sort(key=lambda p: p['usage']['total_tokens'] or 0, reverse=True)
     total = totals(selected)
     covered = sum(p['usage']['total_tokens'] is not None for p in providers)
     confirmed = sum(t['status'] == 'user_confirmed' for t in tasks)
-    return dict(usage=total, sessions=len(tasks), confirmed=confirmed, pending=len(tasks)-confirmed,
+    return dict(usage=total, cost=costs(selected), pricing_sources=SOURCES, pricing_rates=RATES,
+        cost_series=[dict(date=point['date'], **{p: costs([e for e in daily[point['date']] if e['provider'] == p]) for p in NAMES}) for point in series], sessions=len(tasks), confirmed=confirmed, pending=len(tasks)-confirmed,
         providers=providers, tasks=tasks, projects=projects, series=series,
         coverage={'providers_with_usage': covered, 'providers_total': 3,
                   'missing_providers': [p['name'] for p in providers if p['usage']['total_tokens'] is None]},
@@ -113,7 +115,7 @@ def demo_events():
                 usage['total_tokens'] = usage['input_tokens']+usage['output_tokens']
                 session = f'demo-{provider}-{day}-{j}'
                 events.append(dict(event_id=uid(session), provider=provider, source_id=provider, session_id=session,
-                    project=project, project_id=uid('demo',project), model=['Claude · 예시','Codex · 예시','Gemini · 예시'][i],
+                    project=project, project_id=uid('demo',project), model=['claude-opus-5-5','gpt-6.1-sol','gemini-4-argon'][i],
                     event_type='usage', occurred_at=time.astimezone(timezone.utc).isoformat(), title='예시 모델 사용량',
                     usage=usage, quality='measured', synthetic=True, source_ref='synthetic-fixture',
                     cache_semantics='included', usage_mode='delta'))
