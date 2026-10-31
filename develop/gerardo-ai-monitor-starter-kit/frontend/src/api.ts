@@ -13,6 +13,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
+  if (response.status === 401) {
+    window.location.assign("/login");
+    throw new Error("로그인이 필요합니다.");
+  }
   if (!response.ok) {
     const data = await response.json().catch(() => null);
     if (response.status === 403) token = "";

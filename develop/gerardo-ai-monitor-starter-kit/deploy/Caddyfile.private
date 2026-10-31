@@ -1,0 +1,15 @@
+{
+    admin off
+    auto_https disable_redirects
+}
+https://gerardo.187-52-127-215.sslip.io:18790 {
+    tls {
+        issuer acme {
+            disable_tlsalpn_challenge
+        }
+    }
+    request_body {
+        max_size 2MB
+    }
+    reverse_proxy dashboard:8765
+}

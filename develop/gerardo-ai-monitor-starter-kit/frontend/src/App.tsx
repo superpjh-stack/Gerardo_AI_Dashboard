@@ -524,6 +524,7 @@ export default function App() {
     [project, setProject] = useState("all"),
     [provider, setProvider] = useState("all");
   const [hostedDemo, setHostedDemo] = useState(false);
+  const [privateMode, setPrivateMode] = useState(false);
   const [demo, setDemo] = useState(false),
     [data, setData] = useState<Overview | null>(null),
     [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
@@ -544,6 +545,7 @@ export default function App() {
       const health = await api<{deployment: string}>("/health");
       const remote = health.deployment === "demo";
       setHostedDemo(remote);
+      setPrivateMode(health.deployment === "private");
       if (remote && !demo) setDemo(true);
       const query = new URLSearchParams({
         period,
@@ -586,6 +588,11 @@ export default function App() {
   };
   const sync = useCallback(
     async (id?: Provider) => {
+      if (privateMode) {
+        await load();
+        setNotice("서버 수신 기록을 새로고침했습니다. 새 기록 전송은 노트북에서 실행하세요.");
+        return;
+      }
       setSyncing(true);
       setError("");
       setNotice("");
@@ -606,15 +613,15 @@ export default function App() {
         setSyncing(false);
       }
     },
-    [load],
+    [load, privateMode],
   );
   useEffect(() => {
-    if (!auto || demo) return;
+    if (!auto || demo || privateMode) return;
     const timer = window.setInterval(() => {
       if (!syncing) void sync();
     }, 60000);
     return () => clearInterval(timer);
-  }, [auto, demo, syncing, sync]);
+  }, [auto, demo, privateMode, syncing, sync]);
   const switchDemo = () => {
     setDemo(!demo);
     setData(null);
@@ -693,14 +700,14 @@ export default function App() {
         <div className="sidebar-bottom">
           <div className="local-box">
             <ShieldCheck size={18} />
-            <strong>{hostedDemo ? "VPS 체험용 작업실" : "내 노트북 안에서만"}</strong>
+            <strong>{hostedDemo ? "VPS 체험용 작업실" : privateMode ? "나의 비공개 VPS 작업실" : "내 노트북 안에서만"}</strong>
             <p>
-              {hostedDemo ? "합성 예시 데이터만 표시합니다." : "활동 기록은 로컬에 보관됩니다."}
+              {hostedDemo ? "합성 예시 데이터만 표시합니다." : privateMode ? "노트북에서 전송한 메타데이터입니다." : "활동 기록은 로컬에 보관됩니다."}
               <br />
               원본 대화와 코드는 복제하지 않아요.
             </p>
             <span>
-              <i /> {hostedDemo ? "DEMO WORKSPACE" : "LOCAL WORKSPACE"}
+              <i /> {hostedDemo ? "DEMO WORKSPACE" : privateMode ? "PRIVATE WORKSPACE" : "LOCAL WORKSPACE"}
             </span>
           </div>
           <div className="profile">
@@ -721,8 +728,9 @@ export default function App() {
             <strong>{active.label}</strong>
           </div>
           <div className="topbar-actions">
+            {privateMode && <form method="post" action="/auth/logout"><button className="demo-button" type="submit">로그아웃</button></form>}
             <span className="local-chip">
-              <ShieldCheck size={12} /> {hostedDemo ? "VPS 체험판" : "로컬 전용"}
+              <ShieldCheck size={12} /> {hostedDemo ? "VPS 체험판" : privateMode ? "VPS 실제 기록" : "로컬 전용"}
             </span>
             <button
               className={`demo-button ${demo ? "selected" : ""}`}
@@ -762,7 +770,7 @@ export default function App() {
                 onClick={() => sync()}
               >
                 <RefreshCw size={14} className={syncing ? "spin" : ""} />
-                {syncing ? "수집 중…" : "지금 동기화"}
+                {syncing ? "수집 중…" : privateMode ? "수신 기록 새로고침" : "지금 동기화"}
               </button>
             </div>
           </div>
@@ -876,15 +884,14 @@ export default function App() {
                 <div>
                   <h2>기록을 연결하면, 흐름이 보입니다.</h2>
                   <p>
-                    Claude와 Codex의 지정된 로컬 JSONL 기록을 읽습니다. 원본은
-                    변경하지 않습니다.
+                    {privateMode ? "노트북에서 보낸 실제 메타데이터를 표시합니다. 새 전송은 노트북의 전송 명령을 실행하세요." : "Claude와 Codex의 지정된 로컬 JSONL 기록을 읽습니다. 원본은 변경하지 않습니다."}
                   </p>
                 </div>
                 <label className="auto-switch">
                   <input
                     type="checkbox"
                     checked={auto}
-                    disabled={demo}
+                    disabled={demo || privateMode}
                     onChange={(e) => setAuto(e.target.checked)}
                   />{" "}
                   1분마다 동기화
@@ -918,9 +925,9 @@ export default function App() {
                         <strong>{date(s.last_success_at)}</strong>
                       </div>
                       <div>
-                        <span>최근 스캔 파일</span>
+                        <span>{privateMode ? "서버 최종 수신" : "최근 스캔 파일"}</span>
                         <strong>
-                          {s.files} / {s.total_files ?? "미확인"}
+                          {privateMode ? date(s.last_received_at ?? null) : `${s.files} / ${s.total_files ?? "미확인"}`}
                         </strong>
                       </div>
                       <div>
@@ -935,11 +942,11 @@ export default function App() {
                       </p>
                       <button
                         className="button"
-                        disabled={!s.available || syncing || demo}
+                        disabled={!s.available || syncing || demo || privateMode}
                         onClick={() => sync(s.id)}
                       >
                         <RefreshCw size={14} />
-                        {s.available ? "동기화" : "연결 미확인"}
+                        {privateMode ? "노트북에서 전송" : s.available ? "동기화" : "연결 미확인"}
                       </button>
                     </div>
                   </article>
@@ -1308,10 +1315,10 @@ export default function App() {
           )}
           <footer className="footer">
             <span>
-              <ShieldCheck size={12} /> {hostedDemo ? "제라도의 AI 작업실 · VPS 체험판" : "나만의 로컬 AI 작업실"}
+              <ShieldCheck size={12} /> {hostedDemo ? "제라도의 AI 작업실 · VPS 체험판" : privateMode ? "제라도의 비공개 VPS 작업실" : "나만의 로컬 AI 작업실"}
             </span>
             <span>
-              Asia/Seoul · {demo ? "합성 예시 데이터" : "읽기 전용 소스 수집"}
+              Asia/Seoul · {demo ? "합성 예시 데이터" : privateMode ? "노트북에서 전송한 실제 기록" : "읽기 전용 소스 수집"}
             </span>
           </footer>
         </div>

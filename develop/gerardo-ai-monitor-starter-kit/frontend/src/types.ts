@@ -14,6 +14,7 @@ export type Source = {
   name: string;
   status: string;
   available: boolean;
+  last_received_at?: string | null;
   last_success_at: string | null;
   last_attempt_at: string | null;
   error: string | null;

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 from .adapters import timestamp, uid
 from .service import demo_events, overview
 from .store import Store, NAMES
+from .security import PrivateAccess
+from .transfer import Receiver, Batch, Finish
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,9 +31,10 @@ class SourceInput(BaseModel):
 
 def create_app(store=None):
     deployment = os.environ.get('MONITOR_DEPLOYMENT', 'local')
-    if deployment not in ('local', 'demo'):
+    if deployment not in ('local', 'demo', 'private'):
         raise RuntimeError('Unsupported deployment mode')
     hosted_demo = deployment == 'demo'
+    private = deployment == 'private'
     store = store or Store(ROOT / '.local/monitor.sqlite3', {
         'claude': Path.home()/'.claude/projects',
         'codex': Path.home()/'.codex/sessions',
@@ -39,9 +42,15 @@ def create_app(store=None):
     }, max_files=int(os.environ.get('MONITOR_MAX_FILES', '100')))
     app = FastAPI(title='제라도의 AI 활동 모니터링', version='0.1.0')
     app.state.store = store
+    access = PrivateAccess(store, os.environ['MONITOR_AUTH_FILE']) if private else None
+    receiver = Receiver(store, access.device) if access else None
     token = secrets.token_urlsafe(32)
     origins = ['http://127.0.0.1:5188', 'http://localhost:5188', 'http://127.0.0.1:8765', 'http://localhost:8765']
     public_url = os.environ.get('MONITOR_PUBLIC_URL', '').rstrip('/')
+    if private and not public_url.startswith('https://'):
+        raise RuntimeError('Private deployment requires HTTPS')
+    if private:
+        origins = []
     hosts = ['127.0.0.1', 'localhost', 'testserver']
     if public_url:
         parsed = urlsplit(public_url)
@@ -49,23 +58,73 @@ def create_app(store=None):
             raise RuntimeError('MONITOR_PUBLIC_URL must be an origin')
         origins.append(public_url)
         hosts.append(parsed.hostname)
+    if access:
+        access.register(app, public_url)
+
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=['GET', 'POST'], allow_headers=['Content-Type', 'X-Local-Token'])
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     @app.middleware('http')
     async def local_guard(request: Request, call_next):
-        if hosted_demo and request.method not in ('GET', 'HEAD', 'OPTIONS'):
-            return JSONResponse({'error': {'code': 'demo_readonly', 'message': 'VPS 체험판은 읽기 전용입니다.', 'retryable': False}}, status_code=403)
+        path = request.url.path
+        mutation = request.method not in ('GET','HEAD','OPTIONS')
+        ingest = private and path in ('/api/v1/transfer/batch','/api/v1/transfer/finish')
+        def denied(code, message, status=403):
+            return JSONResponse({'error': {'code': code, 'message': message, 'retryable': False}}, status_code=status,
+                headers={'Cache-Control':'no-store'})
+        if hosted_demo and mutation:
+            return denied('demo_readonly','VPS 체험판은 읽기 전용입니다.')
         origin = request.headers.get('origin')
-        public_navigation = hosted_demo and request.method == 'GET' and request.headers.get('sec-fetch-dest') == 'document'
-        if (origin and origin not in origins) or (request.headers.get('sec-fetch-site') == 'cross-site' and not public_navigation):
-            return JSONResponse({'error': {'code': 'origin_denied', 'message': '허용되지 않은 요청 출처입니다.', 'retryable': False}}, status_code=403)
-        if request.method not in ('GET', 'HEAD', 'OPTIONS') and not secrets.compare_digest(request.headers.get('x-local-token', ''), token):
-            return JSONResponse({'error': {'code': 'token_required', 'message': '화면을 새로고침한 뒤 다시 시도하세요.', 'retryable': True}}, status_code=403)
+        navigation = (hosted_demo or private) and request.method == 'GET' and request.headers.get('sec-fetch-dest') == 'document'
+        if (origin and origin not in origins) or (request.headers.get('sec-fetch-site') == 'cross-site' and not navigation):
+            return denied('origin_denied','허용되지 않은 요청 출처입니다.')
+        if private:
+            if ingest:
+                if not access.ingestion(request):
+                    return denied('transfer_auth','전송 인증이 필요합니다.',401)
+            elif path not in ('/api/v1/health','/login','/auth/login') and not access.authenticated(request):
+                if not path.startswith('/api/') and request.method == 'GET':
+                    return RedirectResponse('/login',303,headers={'Cache-Control':'no-store'})
+                return denied('login_required','작업실 로그인이 필요합니다.',401)
+        if mutation:
+            auth_form = private and path in ('/auth/login','/auth/logout')
+            if not ingest and not auth_form and not secrets.compare_digest(request.headers.get('x-local-token',''),token):
+                return denied('token_required','화면을 새로고침한 뒤 다시 시도하세요.')
+            # Bound both declared and chunked bodies before JSON/form parsing.
+            limit = 2 * 1024 * 1024 if ingest else 16384
+            body = bytearray()
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body)>limit:
+                    return denied('too_large','요청 크기가 제한을 초과했습니다.',413)
+            request._body = bytes(body)
         response = await call_next(request)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['X-Frame-Options'] = 'DENY'
+        if private:
+            response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
         return response
+
+    if receiver:
+        @app.post('/api/v1/transfer/batch')
+        def receive_batch(body: Batch):
+            try:
+                return receiver.batch(body)
+            except PermissionError:
+                raise HTTPException(403,'등록된 기기가 아닙니다.')
+            except ValueError:
+                raise HTTPException(409,'전송 배치 상태를 확인하세요.')
+
+        @app.post('/api/v1/transfer/finish')
+        def receive_finish(body: Finish):
+            try:
+                return receiver.finish(body)
+            except PermissionError:
+                raise HTTPException(403,'등록된 기기가 아닙니다.')
+            except ValueError:
+                raise HTTPException(409,'전체 전송 개수와 해시가 일치하지 않습니다.')
 
     @app.exception_handler(HTTPException)
     async def api_error(request, exc):
@@ -77,7 +136,7 @@ def create_app(store=None):
 
     @app.get('/api/v1/health')
     def health():
-        return {'status': 'ok', 'version': '0.2.0', 'local_only': not hosted_demo, 'deployment': deployment}
+        return {'status': 'ok', 'version': '0.2.0', 'local_only': deployment == 'local', 'deployment': deployment}
 
     @app.get('/api/v1/session')
     def session():
@@ -89,7 +148,7 @@ def create_app(store=None):
             return [dict(s, available=False, status='demo', location='연결되지 않음', capabilities=[],
                          files=0, total_files=0, last_success_at=None, last_attempt_at=None, warnings=0,
                          error='VPS 체험판에는 노트북 기록이 연결되어 있지 않습니다.') for s in store.sources()]
-        return store.sources()
+        return receiver.sources() if receiver else store.sources()
 
     @app.post('/api/v1/sources')
     def connect(body: SourceInput):
@@ -97,6 +156,8 @@ def create_app(store=None):
 
     @app.post('/api/v1/sources/{provider}/sync')
     def sync(provider: str):
+        if private:
+            raise HTTPException(409, '노트북에서 전송 명령을 실행한 뒤 화면을 새로고침하세요.')
         if provider not in NAMES:
             raise HTTPException(404, '소스를 찾을 수 없습니다.')
         try:
@@ -114,7 +175,7 @@ def create_app(store=None):
             raise HTTPException(422, '유효한 시간대와 조회 기간을 지정하세요.')
         demo = hosted_demo or demo
         events = demo_events() if demo else store.events()
-        sources = store.sources()
+        sources = receiver.sources() if receiver else store.sources()
         if demo:
             sources = [dict(s, status='demo', available=True, error=None) for s in sources]
         try:

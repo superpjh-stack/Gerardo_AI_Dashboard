@@ -25,3 +25,13 @@ POST sources의 본문은 {"provider":"claude"|"codex"|"antigravity"}. 임의 �
 GET /session은 변경 요청에 필요한 로컬 토큰을 반환한다. POST는 X-Local-Token 헤더가 필요하다.
 조회는 period=today|week|month|all, project, provider, demo를 지원한다. from/to 사용자 지정 기간은 overview에서 지원한다. 시간대는 현재 Asia/Seoul 고정이다. events의 cursor는 현재 정렬 결과의 오프셋 정수이며 동기화 시 페이지 경계가 달라질 수 있다.
 현재 DTO 정의는 frontend/src/types.ts, 서버 핸들러는 backend/monitor/app.py에 있다. 커스텀 경로 등록은 후속 범위다.
+
+## private 모드
+로그인 `/login` → POST `/auth/login` → Secure/HttpOnly/SameSite=strict 세션(7일).
+POST `/auth/logout`은 서버 세션을 폐기한다. 로그인/로그아웃은 정확한 HTTPS Origin을 요구한다.
+health/login 외 모든 조회는 로그인 필요. 기존 로컬 변경 토큰도 로그인 후 발급한다.
+로그인 자격 증명과 전송 Bearer는 분리한다. Bearer로 대시보드를 조회할 수 없다.
+POST `/transfer/batch`: 허용 필드 이벤트 250개 이하, 전체 요청 2MiB 이하. 임시 저장만 수행.
+POST `/transfer/finish`: 기기/업로드 ID·전체 개수·정렬된 payload SHA256·소스 상태 3종을 검증한 뒤 원자 반영.
+잘못된 스키마 422, 인증 실패 401, 기기 불일치 403, 스냅샷 불일치 409. 미완료 전송은 기존 기록을 변경하지 않는다.
+서버는 노트북 소스를 직접 수집하지 않는다. 로컬 sync 요청은 409와 안내 문구를 반환한다.

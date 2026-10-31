@@ -1,0 +1,51 @@
+services:
+  dashboard:
+    build:
+      context: https://github.com/superpjh-stack/Gerardo_AI_Dashboard.git#${MONITOR_REVISION:?Set a reviewed commit SHA}:develop/gerardo-ai-monitor-starter-kit
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MONITOR_DEPLOYMENT: private
+      MONITOR_PUBLIC_URL: https://gerardo.187-52-127-215.sslip.io:18790
+      MONITOR_AUTH_FILE: /run/secrets/monitor-auth.json
+    volumes:
+      - private-data:/app/.local
+      - ./secrets/auth.json:/run/secrets/monitor-auth.json:ro
+    networks: [private]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  https:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "18790:18790"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [default, private]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 192m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+networks:
+  private:
+    internal: true
+volumes:
+  private-data:
+  caddy-data:
+  caddy-config:
