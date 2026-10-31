@@ -523,6 +523,7 @@ export default function App() {
   const [period, setPeriod] = useState("today"),
     [project, setProject] = useState("all"),
     [provider, setProvider] = useState("all");
+  const [hostedDemo, setHostedDemo] = useState(false);
   const [demo, setDemo] = useState(false),
     [data, setData] = useState<Overview | null>(null),
     [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
@@ -540,11 +541,15 @@ export default function App() {
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
     try {
+      const health = await api<{deployment: string}>("/health");
+      const remote = health.deployment === "demo";
+      setHostedDemo(remote);
+      if (remote && !demo) setDemo(true);
       const query = new URLSearchParams({
         period,
         project,
         provider,
-        demo: String(demo),
+        demo: String(remote || demo),
       });
       const [next, ps, ss] = await Promise.all([
         api<Overview>("/overview?" + query),
@@ -688,14 +693,14 @@ export default function App() {
         <div className="sidebar-bottom">
           <div className="local-box">
             <ShieldCheck size={18} />
-            <strong>내 노트북 안에서만</strong>
+            <strong>{hostedDemo ? "VPS 체험용 작업실" : "내 노트북 안에서만"}</strong>
             <p>
-              활동 기록은 로컬에 보관됩니다.
+              {hostedDemo ? "합성 예시 데이터만 표시합니다." : "활동 기록은 로컬에 보관됩니다."}
               <br />
               원본 대화와 코드는 복제하지 않아요.
             </p>
             <span>
-              <i /> LOCAL WORKSPACE
+              <i /> {hostedDemo ? "DEMO WORKSPACE" : "LOCAL WORKSPACE"}
             </span>
           </div>
           <div className="profile">
@@ -717,14 +722,15 @@ export default function App() {
           </div>
           <div className="topbar-actions">
             <span className="local-chip">
-              <ShieldCheck size={12} /> 로컬 전용
+              <ShieldCheck size={12} /> {hostedDemo ? "VPS 체험판" : "로컬 전용"}
             </span>
             <button
               className={`demo-button ${demo ? "selected" : ""}`}
               onClick={switchDemo}
+              disabled={hostedDemo}
             >
               <FlaskConical size={14} />
-              {demo ? "실제 기록으로" : "예시 둘러보기"}
+              {hostedDemo ? "읽기 전용" : demo ? "실제 기록으로" : "예시 둘러보기"}
             </button>
             <span className="avatar small-avatar">G</span>
           </div>
@@ -767,9 +773,9 @@ export default function App() {
                 <strong>예시 모드입니다.</strong> 화면을 살펴보기 위한 합성
                 데이터이며 실제 사용량과 분리되어 있습니다.
               </div>
-              <button onClick={switchDemo}>
+              {!hostedDemo && <button onClick={switchDemo}>
                 실제 기록 보기 <ArrowRight size={14} />
-              </button>
+              </button>}
             </div>
           )}
           {error && (
@@ -1302,7 +1308,7 @@ export default function App() {
           )}
           <footer className="footer">
             <span>
-              <ShieldCheck size={12} /> 나만의 로컬 AI 작업실
+              <ShieldCheck size={12} /> {hostedDemo ? "제라도의 AI 작업실 · VPS 체험판" : "나만의 로컬 AI 작업실"}
             </span>
             <span>
               Asia/Seoul · {demo ? "합성 예시 데이터" : "읽기 전용 소스 수집"}

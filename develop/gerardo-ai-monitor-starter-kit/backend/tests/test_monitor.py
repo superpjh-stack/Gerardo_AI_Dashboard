@@ -180,3 +180,23 @@ def test_local_synthetic_response_not_counted(tmp_path):
     p=tmp_path/'s.jsonl';row=claude_row();row['message']['model']='<synthetic>'
     write(p,[row]);events,_=parse_file(p,'claude',tmp_path)
     assert events==[]
+
+
+def test_hosted_demo_never_exposes_real_events(store,monkeypatch):
+    store.sync('codex')
+    monkeypatch.setenv('MONITOR_DEPLOYMENT','demo')
+    monkeypatch.setenv('MONITOR_PUBLIC_URL','http://dashboard.example:8788')
+    client=TestClient(create_app(store),base_url='http://dashboard.example:8788')
+    assert client.get('/api/v1/health').json()['deployment']=='demo'
+    for demo in ['true','false']:
+        result=client.get('/api/v1/overview?period=all&demo='+demo).json()
+        assert result['tasks'] and all(t['synthetic'] for t in result['tasks'])
+        events=client.get('/api/v1/events?demo='+demo).json()['items']
+        assert all(e['synthetic'] for e in events)
+    assert all(not s['available'] for s in client.get('/api/v1/sources').json())
+    assert client.get('/api/v1/tasks/'+uid('codex','s1')).status_code==404
+    token=client.get('/api/v1/session').json()['token']
+    assert client.post('/api/v1/sources/codex/sync',headers={'X-Local-Token':token}).status_code==403
+    assert client.get('/api/v1/health',headers={'Host':'untrusted.example'}).status_code==400
+    assert client.get('/api/v1/overview',headers={'Origin':'http://dashboard.example:8788'}).status_code==200
+    assert client.get('/api/v1/overview',headers={'Origin':'http://evil.example'}).status_code==403

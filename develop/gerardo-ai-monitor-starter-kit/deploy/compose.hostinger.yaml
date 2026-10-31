@@ -1,0 +1,29 @@
+services:
+  dashboard:
+    build:
+      context: https://github.com/superpjh-stack/Gerardo_AI_Dashboard.git#main:develop/gerardo-ai-monitor-starter-kit
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "18788:8765"
+    environment:
+      MONITOR_DEPLOYMENT: demo
+      MONITOR_PUBLIC_URL: http://187.52.127.215:18788
+    volumes:
+      - dashboard-data:/app/.local
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+volumes:
+  dashboard-data:

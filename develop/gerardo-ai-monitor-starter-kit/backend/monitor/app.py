@@ -3,10 +3,12 @@ import os
 import secrets
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
@@ -26,6 +28,10 @@ class SourceInput(BaseModel):
 
 
 def create_app(store=None):
+    deployment = os.environ.get('MONITOR_DEPLOYMENT', 'local')
+    if deployment not in ('local', 'demo'):
+        raise RuntimeError('Unsupported deployment mode')
+    hosted_demo = deployment == 'demo'
     store = store or Store(ROOT / '.local/monitor.sqlite3', {
         'claude': Path.home()/'.claude/projects',
         'codex': Path.home()/'.codex/sessions',
@@ -35,13 +41,24 @@ def create_app(store=None):
     app.state.store = store
     token = secrets.token_urlsafe(32)
     origins = ['http://127.0.0.1:5188', 'http://localhost:5188', 'http://127.0.0.1:8765', 'http://localhost:8765']
+    public_url = os.environ.get('MONITOR_PUBLIC_URL', '').rstrip('/')
+    hosts = ['127.0.0.1', 'localhost', 'testserver']
+    if public_url:
+        parsed = urlsplit(public_url)
+        if parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.path or parsed.username:
+            raise RuntimeError('MONITOR_PUBLIC_URL must be an origin')
+        origins.append(public_url)
+        hosts.append(parsed.hostname)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=['GET', 'POST'], allow_headers=['Content-Type', 'X-Local-Token'])
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=['127.0.0.1', 'localhost', 'testserver'])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     @app.middleware('http')
     async def local_guard(request: Request, call_next):
+        if hosted_demo and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            return JSONResponse({'error': {'code': 'demo_readonly', 'message': 'VPS 체험판은 읽기 전용입니다.', 'retryable': False}}, status_code=403)
         origin = request.headers.get('origin')
-        if (origin and origin not in origins) or request.headers.get('sec-fetch-site') == 'cross-site':
+        public_navigation = hosted_demo and request.method == 'GET' and request.headers.get('sec-fetch-dest') == 'document'
+        if (origin and origin not in origins) or (request.headers.get('sec-fetch-site') == 'cross-site' and not public_navigation):
             return JSONResponse({'error': {'code': 'origin_denied', 'message': '허용되지 않은 요청 출처입니다.', 'retryable': False}}, status_code=403)
         if request.method not in ('GET', 'HEAD', 'OPTIONS') and not secrets.compare_digest(request.headers.get('x-local-token', ''), token):
             return JSONResponse({'error': {'code': 'token_required', 'message': '화면을 새로고침한 뒤 다시 시도하세요.', 'retryable': True}}, status_code=403)
@@ -60,7 +77,7 @@ def create_app(store=None):
 
     @app.get('/api/v1/health')
     def health():
-        return {'status': 'ok', 'version': '0.1.0', 'local_only': True}
+        return {'status': 'ok', 'version': '0.2.0', 'local_only': not hosted_demo, 'deployment': deployment}
 
     @app.get('/api/v1/session')
     def session():
@@ -68,6 +85,10 @@ def create_app(store=None):
 
     @app.get('/api/v1/sources')
     def sources():
+        if hosted_demo:
+            return [dict(s, available=False, status='demo', location='연결되지 않음', capabilities=[],
+                         files=0, total_files=0, last_success_at=None, last_attempt_at=None, warnings=0,
+                         error='VPS 체험판에는 노트북 기록이 연결되어 있지 않습니다.') for s in store.sources()]
         return store.sources()
 
     @app.post('/api/v1/sources')
@@ -91,6 +112,7 @@ def create_app(store=None):
         start, end = timestamp(from_), timestamp(to)
         if from_ and (not start or not end or start >= end):
             raise HTTPException(422, '유효한 시간대와 조회 기간을 지정하세요.')
+        demo = hosted_demo or demo
         events = demo_events() if demo else store.events()
         sources = store.sources()
         if demo:
@@ -112,12 +134,14 @@ def create_app(store=None):
 
     @app.get('/api/v1/projects')
     def projects(demo: bool=False):
+        demo = hosted_demo or demo
         events = demo_events() if demo else store.events()
         return sorted({e['project_id']: {'id': e['project_id'], 'name': e['project']} for e in events}.values(), key=lambda p:p['name'])
 
     @app.get('/api/v1/events')
     def events(period: Literal['today','week','month','all']='today', project: str='all', provider: str='all', demo: bool=False,
                cursor: int=Query(0,ge=0), limit: int=Query(50,ge=1,le=200)):
+        demo = hosted_demo or demo
         data = get_overview(period, project, provider, demo, None, None)
         start, end = data['period']['from'], data['period']['to']
         all_events = demo_events() if demo else store.events()
@@ -128,6 +152,7 @@ def create_app(store=None):
 
     @app.get('/api/v1/tasks/{task_id}')
     def detail(task_id: str, demo: bool=False):
+        demo = hosted_demo or demo
         if demo:
             group = [e for e in demo_events() if uid(e['provider'],e['session_id']) == task_id]
             if not group:
@@ -154,6 +179,16 @@ def create_app(store=None):
             raise HTTPException(404, '세션을 찾을 수 없습니다.')
         store.confirm(task_id)
         return {'status': 'user_confirmed'}
+
+    dist = ROOT / 'frontend/dist'
+    if dist.is_dir():
+        app.mount('/assets', StaticFiles(directory=dist / 'assets'), name='assets')
+
+        @app.get('/{path:path}', include_in_schema=False)
+        def frontend(path: str):
+            if path not in ('', 'activity', 'projects', 'usage', 'sources'):
+                raise HTTPException(404, '페이지를 찾을 수 없습니다.')
+            return FileResponse(dist / 'index.html')
 
     return app
 
