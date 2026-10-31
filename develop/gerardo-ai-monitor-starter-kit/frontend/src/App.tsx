@@ -234,7 +234,8 @@ function Chart({
     </div>
   );
 }
-const usd = (value: number | null) => value === null ? "미수집" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+const usd = (value: number | null) => value === null ? "미수집" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+const unitPrice = (value: number | null) => value === null ? "미수집" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
 function costText(cost: Cost) {
   if (cost.estimated_api_equivalent === null) return "산정 불가";
   return usd(cost.estimated_api_equivalent);
@@ -250,7 +251,7 @@ function CostPanel({ data, detailed = false }: { data: Overview; detailed?: bool
     {detailed && <>
       <div className="cost-table" role="region" aria-label="도구별 비용 통계" tabIndex={0}><table><thead><tr><th>도구</th><th>수집 토큰</th><th>API 환산 추정액</th><th>산정 / 제외 기록</th></tr></thead><tbody>{data.providers.map(tool => <tr key={tool.id}><th>{tool.name}</th><td>{integer(tool.usage.total_tokens)}</td><td>{costText(tool.cost)}</td><td>{tool.cost.included_count} / {tool.cost.missing_count}</td></tr>)}</tbody></table></div>
       <details><summary>일별 예상 비용 (최근 최대 62일)</summary><div className="cost-table" role="region" aria-label="일별 비용 통계" tabIndex={0}><table><thead><tr><th>날짜</th>{Object.values(names).map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{data.cost_series.map(point => <tr key={point.date}><th>{point.date}</th>{(Object.keys(names) as Provider[]).map(id => <td key={id}>{costText(point[id])}{point[id].missing_count > 0 && " (제외 기록 있음)"}</td>)}</tr>)}</tbody></table></div></details>
-      <details><summary>적용 단가와 공식 출처</summary><p className="cost-note">100만 토큰당 USD · 표준 처리 기준. GPT-5.6 Sol과 Gemini 4 Argon은 기준일의 프로모션 단가입니다. 지원 목록에 없는 모델은 산정에서 제외합니다.</p><div className="cost-table" role="region" aria-label="모델별 단가" tabIndex={0}><table><thead><tr><th>모델</th><th>입력</th><th>출력</th><th>캐시 읽기</th><th>캐시 쓰기 (단기 / 장기)</th></tr></thead><tbody>{Object.entries(data.pricing_rates).map(([model, rate]) => <tr key={model}><th>{model}</th>{rate.slice(0,3).map((r,i) => <td key={i}>{usd(r)}</td>)}<td>{rate[3] === null ? "미지원" : `${usd(rate[3])} / ${usd(rate[4])}`}</td></tr>)}</tbody></table></div><div className="cost-sources">{Object.entries(data.pricing_sources).map(([name,url]) => <a key={name} href={url} target="_blank" rel="noreferrer">{name} 공식 요금표 ↗</a>)}</div></details>
+      <details><summary>적용 단가와 공식 출처</summary><p className="cost-note">100만 토큰당 USD · 표준 처리 기준. GPT-5.6 Sol과 Gemini 4 Argon은 기준일의 프로모션 단가입니다. 지원 목록에 없는 모델은 산정에서 제외합니다.</p><div className="cost-table" role="region" aria-label="모델별 단가" tabIndex={0}><table><thead><tr><th>모델</th><th>입력</th><th>출력</th><th>캐시 읽기</th><th>캐시 쓰기 (단기 / 장기)</th></tr></thead><tbody>{Object.entries(data.pricing_rates).map(([model, rate]) => <tr key={model}><th>{model}</th>{rate.slice(0,3).map((r,i) => <td key={i}>{unitPrice(r)}</td>)}<td>{rate[3] === null ? "미지원" : `${unitPrice(rate[3])} / ${unitPrice(rate[4])}`}</td></tr>)}</tbody></table></div><div className="cost-sources">{Object.entries(data.pricing_sources).map(([name,url]) => <a key={name} href={url} target="_blank" rel="noreferrer">{name} 공식 요금표 ↗</a>)}</div></details>
     </>}
   </section>;
 }
