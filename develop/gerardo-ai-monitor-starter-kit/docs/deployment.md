@@ -23,3 +23,13 @@
 - 컨테이너 /api/v1/health, /, /activity, 정적 assets, /overview 응답 확인.
 - 실제 DB를 주입해도 체험판에서 읽히지 않는 것을 테스트로 확인.
 - VPS 배포 후 외부 URL의 UI/API와 POST 거부를 다시 확인한다.
+
+## 배포 결과 — 2026-10-31
+- URL: http://187.52.127.215:18788/
+- 프로젝트: `gerardo-ai-dashboard`, 컨테이너: `gerardo-ai-dashboard-dashboard-1` (healthy).
+- 배포 커밋: `ab7f9ed4b3368097d6113f178bbfecfb1bcdbca4`.
+- 서버 구성: `/opt/gerardo-ai-dashboard/compose.yaml`, 빌드 로그: `/opt/gerardo-ai-dashboard/deploy.log`.
+- hPanel 최초 배포에서 `Docker project not found` 오류 발생. 인증된 Hostinger 웹 콘솔에서 동일한 Compose를 커밋 SHA로 고정하여 빌드·기동했다.
+- 외부 health, 루트 화면, /activity, overview와 events API에서 HTTP 200 확인. 실제 브라우저에서 VPS 체험판 표시와 차트 확인.
+- POST /api/v1/scan은 HTTP 403 `demo_readonly`. 개인 로그·DB는 전송하지 않았다.
+- 운영 명령: `docker compose -p gerardo-ai-dashboard -f /opt/gerardo-ai-dashboard/compose.yaml ps`.
