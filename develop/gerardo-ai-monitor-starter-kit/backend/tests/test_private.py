@@ -41,7 +41,9 @@ def test_all_private_routes_require_login(private):
         assert client.get(path).status_code==401
     for path in ('/','/activity','/assets/test.js','/docs','/openapi.json'):
         assert client.get(path,follow_redirects=False).status_code==303
-    assert client.get('/login').status_code==200
+    page=client.get('/login')
+    assert page.status_code==200
+    assert page.headers['referrer-policy']=='same-origin'
     response=login(private)
     cookie=response.headers['set-cookie']
     assert 'Secure' in cookie and 'HttpOnly' in cookie and 'SameSite=strict' in cookie
