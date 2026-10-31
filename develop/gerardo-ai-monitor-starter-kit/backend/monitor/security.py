@@ -25,6 +25,9 @@ def password_hash(password: str, salt: str) -> str:
 class PrivateAccess:
     def __init__(self, store, config_path: str):
         cfg = json.loads(Path(config_path).read_text())
+        self.username = cfg.get('username', 'admin')
+        if not isinstance(self.username, str) or not self.username or len(self.username) > 100:
+            raise RuntimeError('Invalid private username')
         self.salt, self.password = cfg['salt'], cfg['password_hash']
         self.ingest_hash, self.device = cfg['ingest_hash'], cfg['device_id']
         for value, length in ((self.salt,32),(self.password,128),(self.ingest_hash,64),(self.device,32)):
@@ -34,6 +37,13 @@ class PrivateAccess:
         with store.db() as c:
             c.execute('CREATE TABLE IF NOT EXISTS auth_sessions(id TEXT PRIMARY KEY, expires REAL NOT NULL)')
             c.execute('CREATE TABLE IF NOT EXISTS login_attempts(id TEXT PRIMARY KEY, started REAL, attempts INTEGER)')
+            c.execute('CREATE TABLE IF NOT EXISTS auth_config(id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)')
+            fingerprint = digest(self.username + ':' + self.salt + ':' + self.password)
+            previous = c.execute("SELECT fingerprint FROM auth_config WHERE id='owner'").fetchone()
+            if not previous or previous[0] != fingerprint:
+                c.execute('DELETE FROM auth_sessions')
+                c.execute('DELETE FROM login_attempts')
+                c.execute("INSERT OR REPLACE INTO auth_config VALUES ('owner',?)", (fingerprint,))
 
     def authenticated(self, request):
         value = request.cookies.get(COOKIE, '')
@@ -51,9 +61,9 @@ class PrivateAccess:
         def page(error='', status=200):
             return HTMLResponse('''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>제라도의 AI 작업실 · 로그인</title>
 <style>body{margin:0;background:#101615;color:#eff5f1;font:16px system-ui;display:grid;min-height:100vh;place-items:center}main{width:min(390px,82vw);padding:36px;border:1px solid #34433c;border-radius:20px;background:#19221e}small{color:#79d9bc}h1{font-size:26px}p{color:#bbc9c0;line-height:1.7}label{display:block;margin-top:24px}input,button{box-sizing:border-box;width:100%;padding:14px;margin-top:10px;border-radius:9px;border:1px solid #526258;font:inherit}input{background:#101615;color:white}button{background:#79d9bc;color:#10251c;cursor:pointer;font-weight:700}.error{color:#ffb2a7}</style>
-<main><small>GERARDO / PRIVATE WORKSPACE</small><h1>제라도의 AI 작업실</h1><p>노트북에서 전송한 실제 활동 기록입니다.<br>개인 작업실 비밀번호로 로그인해 주세요.</p>'''
+<main><small>GERARDO / PRIVATE WORKSPACE</small><h1>제라도의 AI 작업실</h1><p>노트북에서 전송한 실제 활동 기록입니다.<br>아이디와 비밀번호로 로그인해 주세요.</p>'''
                 + (f'<p class="error" role="alert">{html.escape(error)}</p>' if error else '')
-                + '''<form method="post" action="/auth/login"><label for="password">비밀번호</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" autofocus><button>작업실 열기</button></form><p><small>대화 원문과 코드는 저장하지 않습니다.</small></p></main></html>''', status_code=status)
+                + '''<form method="post" action="/auth/login"><label for="username">아이디</label><input id="username" name="username" type="text" autocomplete="username" required maxlength="100" autofocus><label for="password">비밀번호</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256"><button>작업실 열기</button></form><p><small>대화 원문과 코드는 저장하지 않습니다.</small></p></main></html>''', status_code=status)
 
         @app.get('/login', include_in_schema=False)
         def login_page(request: Request):
@@ -75,8 +85,11 @@ class PrivateAccess:
                 c.execute("INSERT INTO login_attempts VALUES ('owner',?,1) ON CONFLICT(id) DO UPDATE SET attempts=attempts+1", (now,))
             body = parse_qs((await request.body()).decode('utf-8',errors='replace'))
             password = body.get('password',[''])[0]
-            if len(password)>256 or not secrets.compare_digest(password_hash(password,self.salt),self.password):
-                return page('비밀번호를 확인해 주세요.',401)
+            username = body.get('username',[''])[0]
+            valid_password = len(password) <= 256 and secrets.compare_digest(password_hash(password,self.salt),self.password)
+            valid_username = len(username) <= 100 and secrets.compare_digest(username.encode(),self.username.encode())
+            if not (valid_password and valid_username):
+                return page('아이디 또는 비밀번호를 확인해 주세요.',401)
             value = secrets.token_urlsafe(32)
             with self.store.db() as c:
                 c.execute('DELETE FROM auth_sessions WHERE expires < ?', (now,))

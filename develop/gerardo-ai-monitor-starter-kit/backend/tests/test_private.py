@@ -24,7 +24,7 @@ def private(tmp_path,monkeypatch):
 
 def login(private):
     client,store,password,headers,device=private
-    return client.post('/auth/login',data={'password':password},headers={'Origin':URL},follow_redirects=False)
+    return client.post('/auth/login',data={'username':'admin','password':password},headers={'Origin':URL},follow_redirects=False)
 
 def snapshot(tmp_path,device):
     roots={'codex':tmp_path/'logs'}
@@ -54,8 +54,8 @@ def test_credentials_separated_and_csrf(private,tmp_path):
     batch,finish=snapshot(tmp_path,device)
     assert client.post('/api/v1/transfer/batch',json=batch).status_code==401
     assert client.get('/api/v1/events',headers=headers).status_code==401
-    assert client.post('/auth/login',data={'password':password}).status_code==403
-    assert client.post('/auth/login',data={'password':password},headers={'Origin':'https://evil.example'}).status_code==403
+    assert client.post('/auth/login',data={'username':'admin','password':password}).status_code==403
+    assert client.post('/auth/login',data={'username':'admin','password':password},headers={'Origin':'https://evil.example'}).status_code==403
     login(private)
     assert client.post('/api/v1/transfer/batch',json=batch).status_code==401
     localtoken=client.get('/api/v1/session').json()['token']
@@ -125,3 +125,22 @@ def test_null_values_preserved(private,tmp_path):
 def test_private_fails_closed(tmp_path,monkeypatch):
     monkeypatch.setenv('MONITOR_DEPLOYMENT','private');monkeypatch.delenv('MONITOR_AUTH_FILE',raising=False)
     with pytest.raises(KeyError):create_app(Store(tmp_path/'db',{}))
+
+
+def test_username_required_and_credential_rotation(private,monkeypatch):
+    from pathlib import Path
+    import os
+    client,store,password,headers,device=private
+    for username in ('','wrong','관리자'):
+        assert client.post('/auth/login',data={'username':username,'password':password},headers={'Origin':URL},follow_redirects=False).status_code==401
+    login(private)
+    old_cookie=client.cookies.get(COOKIE)
+    cfg_path=Path(os.environ['MONITOR_AUTH_FILE']);cfg=json.loads(cfg_path.read_text())
+    new_password=secrets.token_urlsafe(24)
+    cfg['username']='admin';cfg['salt']=secrets.token_hex(16);cfg['password_hash']=password_hash(new_password,cfg['salt'])
+    cfg_path.write_text(json.dumps(cfg))
+    updated=TestClient(create_app(store),base_url=URL);updated.cookies.set(COOKIE,old_cookie)
+    assert updated.get('/api/v1/events').status_code==401
+    assert updated.post('/auth/login',data={'username':'admin','password':password},headers={'Origin':URL},follow_redirects=False).status_code==401
+    assert updated.post('/auth/login',data={'username':'admin','password':new_password},headers={'Origin':URL},follow_redirects=False).status_code==303
+    assert updated.get('/api/v1/events').status_code==200
