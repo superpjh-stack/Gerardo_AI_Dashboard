@@ -61,3 +61,11 @@ npm --prefix frontend run build
 [가이드](docs/guide.md) · [기획](docs/product-plan.md) · [구현 계획](docs/plans/2026-10-31-mvp.md) · [공통 규칙](AGENTS.md) · [연동 조사](docs/source-capabilities.md) · [백로그](docs/backlog.md)
 
 Codex는 AGENTS.md, Claude는 CLAUDE.md와 .claude/commands/, Antigravity는 [시작 프롬프트](prompts/antigravity-start.md)를 사용합니다.
+
+## VPS에서 실제 기록 보기
+HTTPS 개인 작업실: https://gerardo.187-52-127-215.sslip.io:18790/
+비밀번호는 이 노트북의 `.local/private/접속정보.txt`에 저장되어 있다(Git 제외).
+`실제기록전송.command`를 실행하면 지정된 로컬 소스를 다시 읽고 메타데이터만 전송한다.
+대화·코드·도구 인자·원본 경로·로컬 메모는 전송하지 않는다. 전송은 수동이며 자동 시작 작업은 없다.
+서버의 “수신 기록 새로고침”은 이미 받은 기록을 조회한다.
+자세한 배포·수집 범위·운영 방법은 [배포 문서](docs/deployment.md)를 참고한다.

@@ -22,3 +22,6 @@
 - 변경: backend/monitor/{app,security,transfer}.py, frontend/src/{App,api,types}, scripts/{transfer,prepare_private}.py, deploy/compose.private.yaml 및 Caddyfile.private.
 - 검증: 24개 pytest 통과, TypeScript/Vite 빌드 통과. 서버 배포·최초 전송 결과는 docs/deployment.md에 후속 기록.
 - writing-plans 스킬 미설치: docs/superpowers/plans에 수동 실행 계획을 기록하고 승인된 설계를 순차 구현.
+- SYNC-001 완료: HTTPS 인증서 정상, 인증 없는 데이터 접근 차단, 최초 실제 전송의 SHA256/개수·집계 일치.
+- 후속 수정 78d1c48: 브라우저 form POST에서 Origin이 null이 되는 no-referrer 정책을 same-origin으로 교체. CUA로 비밀번호 검증 화면 확인.
+- 로컬 비밀 파일/전송 결과는 Git 제외. 공개 저장소에는 실제 프로젝트 목록·개인 집계를 기록하지 않음.

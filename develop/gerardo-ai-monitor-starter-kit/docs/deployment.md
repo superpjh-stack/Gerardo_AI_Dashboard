@@ -33,3 +33,32 @@
 - 외부 health, 루트 화면, /activity, overview와 events API에서 HTTP 200 확인. 실제 브라우저에서 VPS 체험판 표시와 차트 확인.
 - POST /api/v1/scan은 HTTP 403 `demo_readonly`. 개인 로그·DB는 전송하지 않았다.
 - 운영 명령: `docker compose -p gerardo-ai-dashboard -f /opt/gerardo-ai-dashboard/compose.yaml ps`.
+
+## 비공개 실제 기록 서비스 — 2026-10-31
+- 주소: https://gerardo.187-52-127-215.sslip.io:18790/
+- 프로젝트 `gerardo-ai-private`, 서버 경로 `/opt/gerardo-ai-private`.
+- 코드 커밋 `78d1c48` (로그인 폼의 same-origin 출처 정책 수정 포함).
+- Compose: `deploy/compose.private.yaml`, 프록시: `deploy/Caddyfile.private`.
+- 공개 체험판의 서비스와 볼륨을 유지하고 새 private DB에만 실제 기록을 저장한다.
+- 기존 443 포트 서비스는 유지. 새 Caddy는 80에서 인증서를 검증하고 18790으로 HTTPS 제공.
+- 인증서 검증, 비로그인 API 401, 로그인/로그아웃·세션 만료, 브라우저 폼 오류 처리를 확인했다.
+- 실제 메타데이터 최초 전송 완료. 개수·스냅샷 SHA256 및 전체 기간 토큰 집계를 대조했다.
+- 개인 집계와 전송 영수증은 Git에 넣지 않는다. 로컬 `.local/private/last-transfer.json`에서 확인한다.
+- 24개 pytest, TypeScript/Vite 빌드 통과. 서버 앱 컨테이너 healthy 확인.
+
+### 사용 방법
+1. 이 노트북의 `.local/private/접속정보.txt`에서 비밀번호를 확인하여 HTTPS 주소에 로그인한다.
+2. 새 기록 전송은 프로젝트의 `실제기록전송.command`를 실행한다. 자동 실행·주기 전송은 설치하지 않았다.
+3. 서버 화면의 새로고침은 수신 완료된 기록만 다시 조회한다. 노트북 로그를 원격 스캔하지 않는다.
+4. 현재 Claude는 최근 수정 100개 파일과 이전 수집분, Codex는 지원 경로의 최근 최대 100개 파일을 수집한다.
+   Antigravity는 지원 가능한 기록 경로를 찾지 못한 상태로 표시한다.
+
+### 비밀 설정과 운영
+- `.local/private/`는 소유자 전용(0700), 접속·전송 파일은 0600이며 Git에서 제외된다.
+- 서버 `secrets/auth.json`에는 로그인 비밀번호 해시와 전송 키 해시만 있다. 앱 UID 10001만 읽을 수 있다.
+- 로그인 세션 만료는 7일이며 서버 DB에 해시만 저장한다. 로그아웃은 서버 세션을 폐기한다.
+- `scripts/prepare_private.py`는 신규 설정용이다. 기존 설정이 있으면 덮어쓰지 않고 중단한다.
+- 갱신은 `.env`의 MONITOR_REVISION을 검증한 SHA로 설정 후
+  `docker compose -p gerardo-ai-private up -d --build`를 실행한다.
+- 중지는 `docker compose -p gerardo-ai-private stop`. 볼륨을 삭제하지 않으면 기록과 인증서가 보존된다.
+- IP 기반 DNS 서비스에 의존한다. 개인 도메인을 사용하려면 Caddy와 MONITOR_PUBLIC_URL, 로컬 client.json의 주소를 함께 변경한다.
