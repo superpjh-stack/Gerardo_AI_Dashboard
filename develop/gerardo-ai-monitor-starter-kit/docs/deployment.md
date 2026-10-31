@@ -62,3 +62,9 @@
   `docker compose -p gerardo-ai-private up -d --build`를 실행한다.
 - 중지는 `docker compose -p gerardo-ai-private stop`. 볼륨을 삭제하지 않으면 기록과 인증서가 보존된다.
 - IP 기반 DNS 서비스에 의존한다. 개인 도메인을 사용하려면 Caddy와 MONITOR_PUBLIC_URL, 로컬 client.json의 주소를 함께 변경한다.
+
+## 모바일 반응형 배포 — 2026-10-31
+- private 서비스 코드 `6aecf84` 배포 완료. 기존 HTTPS 주소에서 새로고침하면 적용된다.
+- 하단 메뉴·큰 터치 영역·세로 필터·스크롤 차트·전체 화면 상세·로그인 유동 폭 적용.
+- 서버 정적 CSS 및 로그인 HTML 갱신, 기존 계정 로그인, 실제 기록 집계 보존, 컨테이너 healthy 확인.
+- 검증용 로컬 서버는 종료했다. 실제 모바일 기기의 OS 키보드 동작은 별도 검증 범위다.
