@@ -89,11 +89,11 @@ const stateName = (s: string) =>
     demo: "예시 데이터",
   })[s] || s;
 const navigation = [
-  { path: "/", label: "대시보드", icon: LayoutDashboard },
-  { path: "/activity", label: "활동 타임라인", icon: Activity },
-  { path: "/projects", label: "프로젝트", icon: FolderOpen },
-  { path: "/usage", label: "토큰 분석", icon: Gauge },
-  { path: "/sources", label: "데이터 소스", icon: Database },
+  { path: "/", label: "대시보드", shortLabel: "홈", icon: LayoutDashboard },
+  { path: "/activity", label: "활동 타임라인", shortLabel: "활동", icon: Activity },
+  { path: "/projects", label: "프로젝트", shortLabel: "프로젝트", icon: FolderOpen },
+  { path: "/usage", label: "토큰 분석", shortLabel: "토큰", icon: Gauge },
+  { path: "/sources", label: "데이터 소스", shortLabel: "소스", icon: Database },
 ];
 
 function Mark({ provider, size = "" }: { provider: Provider; size?: string }) {
@@ -143,7 +143,8 @@ function Chart({
     <div className="usage-chart">
       {has ? (
         <>
-          <div className="chart-body">
+          <div className="chart-scroll" role="region" aria-label="일별 토큰 차트, 좌우로 스크롤" tabIndex={0}>
+          <div className="chart-body" style={{ minWidth: points.length > 10 ? `${points.length * 30 + 48}px` : undefined }}>
             <div className="y-axis">
               <span>{compact(max)}</span>
               <span>{compact(Math.round(max / 2))}</span>
@@ -182,6 +183,8 @@ function Chart({
               </div>
             </div>
           </div>
+          </div>
+          {points.length > 10 && <p className="chart-hint">차트를 좌우로 밀어 전체 기간을 확인하세요.</p>}
           <div className="chart-foot">
             <span>한국시간 기준 · 수집된 사용량</span>
             <div className="legend">
@@ -204,7 +207,7 @@ function Chart({
         <summary>
           일별 수치 보기 <ChevronRight size={13} />
         </summary>
-        <div className="table-scroll">
+        <div className="table-scroll" role="region" aria-label="일별 토큰 수치, 좌우로 스크롤" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -351,7 +354,10 @@ function SessionDialog({
   );
   useEffect(() => {
     ref.current?.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     load();
+    return () => { document.body.style.overflow = previousOverflow; };
   }, [load]);
   async function save(confirm = false) {
     setBusy(true);
@@ -374,6 +380,7 @@ function SessionDialog({
     <dialog
       ref={ref}
       className="session-dialog"
+      aria-label={`${task.project} 작업 상세`}
       onCancel={onClose}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
@@ -684,11 +691,13 @@ export default function App() {
               key={n.path}
               aria-label={n.label}
               title={n.label}
+              aria-current={active.path === n.path ? "page" : undefined}
               className={`nav-item ${active.path === n.path ? "active" : ""}`}
               onClick={() => navigate(n.path)}
             >
               <n.icon size={18} />
-              <span>{n.label}</span>
+              <span className="nav-label">{n.label}</span>
+              <span className="nav-short">{n.shortLabel}</span>
               {n.path === "/sources" && (
                 <span className="nav-count">
                   {sources.filter((s) => s.available).length}/3
