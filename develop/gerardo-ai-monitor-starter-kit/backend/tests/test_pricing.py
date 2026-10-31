@@ -20,11 +20,12 @@ def test_cached_input_is_not_charged_twice():
     assert costs([row])['estimated_api_equivalent'] == pytest.approx(2.24)
 
 
-def test_claude_excluded_cache_and_write_range():
+def test_claude_excluded_cache_and_write_midpoint():
     row = event('claude-opus-5-5', 'excluded')
     row['usage']['cache_write_tokens'] = 100_000
     cost = costs([row])
-    assert cost['estimated_api_equivalent'] == pytest.approx(6.58)
+    assert cost['estimated_api_equivalent'] == pytest.approx(6.73)
+    assert cost['lower_usd'] == pytest.approx(6.58)
     assert cost['upper_usd'] == pytest.approx(6.88)
 
 

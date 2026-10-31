@@ -63,7 +63,8 @@ def costs(events):
             low += value[0]
             high += value[1]
     missing = sum(reasons.values())
-    return dict(estimated_api_equivalent=float(low) if included else None,
+    return dict(estimated_api_equivalent=float((low + high) / 2) if included else None,
+                lower_usd=float(low) if included else None,
                 upper_usd=float(high) if included else None,
                 currency='USD', quality='estimated' if included else 'unavailable',
                 status=('partial' if missing else 'estimated') if included else 'unavailable',
