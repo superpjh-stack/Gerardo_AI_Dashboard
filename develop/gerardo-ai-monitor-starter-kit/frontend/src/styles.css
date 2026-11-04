@@ -1994,6 +1994,21 @@ td:first-child {
 .cost-line small { width: 100%; }
 .cost-note { line-height: 1.75; margin: 4px 0 18px; }
 .cost-panel > .cost-line strong { font-size: clamp(22px, 4vw, 32px); }
+.aws-cost-panel { margin-bottom: 20px; }
+.aws-total { display: flex; flex-direction: column; gap: 8px; padding: 26px 0; border-bottom: 1px solid var(--line); }
+.aws-total span, .aws-total small, .aws-setup p, .aws-setup small { color: var(--muted); }
+.aws-total strong { color: var(--mint); font-size: clamp(32px, 6vw, 48px); }
+.aws-section-title { margin: 24px 0 12px; font-size: 16px; }
+.aws-bars { display: grid; gap: 10px; }
+.aws-bar-row { display: grid; grid-template-columns: 56px minmax(60px,1fr) 86px; align-items: center; gap: 12px; font-size: 13px; }
+.aws-bar-row time { color: var(--muted); }
+.aws-bar-row > div { height: 9px; border-radius: 8px; background: #202d3d; overflow: hidden; }
+.aws-bar-row i { display: block; height: 100%; background: var(--mint); border-radius: inherit; }
+.aws-bar-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.aws-setup { display: grid; justify-items: start; gap: 12px; padding: 30px 0; }
+.aws-setup > svg { color: var(--mint); }
+.aws-setup > strong { font-size: 18px; }
+.aws-setup small { line-height: 1.7; }
 .cost-table { max-width: 100%; overflow-x: auto; margin: 12px 0; }
 .cost-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .cost-table th, .cost-table td { text-align: left; white-space: nowrap; padding: 12px; border-bottom: 1px solid #2d3a50; }

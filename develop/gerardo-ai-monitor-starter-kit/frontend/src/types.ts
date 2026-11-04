@@ -113,3 +113,13 @@ export type Detail = {
   confirmed_at: string | null;
   evidence: { ref: string; type: string; time: string; available?: boolean }[];
 };
+export type AwsCosts = {
+  status: string;
+  message: string | null;
+  currency: string;
+  period: { start: string; end: string } | null;
+  total: number | null;
+  daily: { date: string; amount: number }[];
+  services: { name: string; amount: number }[];
+  updated_at: string | null;
+};

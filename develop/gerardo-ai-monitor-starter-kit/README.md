@@ -26,6 +26,7 @@ uv run python scripts/dev.py
 - 오늘·이번 주·이번 달·전체 / 프로젝트 / 도구 필터
 - AI 카드, 프로젝트별 타임라인, 일별 토큰 차트와 표
 - 세션 상세, 로컬 근거 참조, 메모, 사용자 검토 완료 표시
+- AWS Cost Explorer 월 누계·일별·서비스별 실제 비용 조회 (AWS 읽기 자격증명 필요)
 - 로컬 규칙형 브리핑, 별도로 켜는 합성 예시 모드
 - 미수집·부분 수집·연결 오류 표시, 키보드 접근과 반응형 CSS
 
@@ -34,6 +35,7 @@ uv run python scripts/dev.py
 - Codex: `~/.codex/sessions`에서 최근 수정 로그 최대 100개.
 - Antigravity: 확인한 경로에서 지원 소스를 발견하지 못해 미연결 상태입니다.
 - `MONITOR_MAX_FILES=300 uv run python scripts/dev.py`처럼 수집 상한을 변경할 수 있습니다.
+- AWS 비용은 서버의 기본 AWS 자격증명 체인을 사용합니다. 로컬에서는 `AWS_PROFILE` 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, AWS 배포에서는 IAM 역할을 설정하고 `ce:GetCostAndUsage` 읽기 권한을 부여하세요. 보고 기준은 USD UnblendedCost이며 Cost Explorer 비용 데이터는 지연될 수 있습니다.
 - ‘전체’는 **이 앱이 수집한 전체 기록**입니다. 삭제된 원본은 재구성하지 않습니다.
 - 한 일은 프로젝트·세션·도구 호출 기반입니다. 대화 전문·코드·도구 인자를 저장하거나 외부로 전송하지 않습니다.
 - 검증 자동 수집, Git 연결, 의미 기반 작업 요약, 비용·구독·잔여 한도는 아직 구현하지 않았습니다.

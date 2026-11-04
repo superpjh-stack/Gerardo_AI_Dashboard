@@ -9,6 +9,7 @@ import {
   CheckCheck,
   ChevronRight,
   CircleHelp,
+  Cloud,
   Clock3,
   Code2,
   Database,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import type {
   Cost,
+  AwsCosts,
   Detail,
   Overview,
   Point,
@@ -94,6 +96,7 @@ const navigation = [
   { path: "/activity", label: "활동 타임라인", shortLabel: "활동", icon: Activity },
   { path: "/projects", label: "프로젝트", shortLabel: "프로젝트", icon: FolderOpen },
   { path: "/usage", label: "토큰 분석", shortLabel: "토큰", icon: Gauge },
+  { path: "/aws-costs", label: "AWS 비용", shortLabel: "AWS", icon: Cloud },
   { path: "/sources", label: "데이터 소스", shortLabel: "소스", icon: Database },
 ];
 
@@ -570,6 +573,19 @@ export default function App() {
     [auto, setAuto] = useState(false),
     [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [awsCosts, setAwsCosts] = useState<AwsCosts | null>(null);
+  const [awsLoading, setAwsLoading] = useState(false);
+  const [awsReload, setAwsReload] = useState(0);
+  useEffect(() => {
+    if (path !== "/aws-costs") return;
+    let active = true;
+    setAwsLoading(true);
+    api<AwsCosts>("/aws-costs")
+      .then((result) => { if (active) setAwsCosts(result); })
+      .catch((e: Error) => { if (active) setAwsCosts({ status: "error", message: e.message, currency: "USD", period: null, total: null, daily: [], services: [], updated_at: null }); })
+      .finally(() => { if (active) setAwsLoading(false); });
+    return () => { active = false; };
+  }, [path, awsReload]);
   const requestSequence = useRef(0);
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -911,6 +927,25 @@ export default function App() {
               <LoaderCircle className="spin" />
               작업실을 불러오고 있습니다.
             </div>
+          ) : path === "/aws-costs" ? (
+            <section className="panel aws-cost-panel">
+              <div className="panel-heading">
+                <div><h2>이번 달 AWS 사용 비용</h2><p>Cost Explorer · USD · 월초부터 현재까지</p></div>
+                <button className="button" onClick={() => { setAwsCosts(null); setAwsReload((n) => n + 1); }}>새로고침 <RefreshCw size={14} /></button>
+              </div>
+              {awsLoading && !awsCosts ? <div className="loading"><LoaderCircle className="spin" /> AWS 비용을 불러오는 중입니다.</div> : awsCosts?.status !== "connected" ? (
+                <div className="aws-setup"><Cloud size={28} /><strong>{awsCosts?.status === "not_configured" ? "AWS 계정을 연결해 주세요" : "AWS 비용을 불러오지 못했습니다"}</strong><p>{awsCosts?.message || "서버의 AWS 자격증명을 확인하세요."}</p><small>서버에서 IAM 역할, AWS_PROFILE 또는 AWS_ACCESS_KEY_ID와 AWS_SECRET_ACCESS_KEY를 사용할 수 있습니다. 필요한 읽기 권한: ce:GetCostAndUsage</small></div>
+              ) : <>
+                <div className="aws-total"><span>월 누계</span><strong>${awsCosts.total?.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{awsCosts.period?.start}부터 · 비용 데이터는 지연 반영될 수 있습니다.</small></div>
+                <h3 className="aws-section-title">일별 비용</h3>
+                <div className="aws-bars" role="list" aria-label="일별 AWS 비용">
+                  {awsCosts.daily.map((day) => { const max = Math.max(0.01, ...awsCosts.daily.map((d) => d.amount)); return <div className="aws-bar-row" role="listitem" key={day.date}><time>{day.date.slice(5)}</time><div><i style={{ width: `${Math.max(1, day.amount / max * 100)}%` }} /></div><strong>${day.amount.toFixed(2)}</strong></div>; })}
+                </div>
+                <h3 className="aws-section-title">서비스별 비용</h3>
+                <div className="cost-table"><table><thead><tr><th>AWS 서비스</th><th>이번 달 비용</th><th>비중</th></tr></thead><tbody>{awsCosts.services.map((service) => <tr key={service.name}><th>{service.name}</th><td>${service.amount.toFixed(2)}</td><td>{awsCosts.total ? `${(service.amount / awsCosts.total * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>
+                <p className="cost-note">Cost Explorer의 UnblendedCost 기준입니다. 할인·크레딧·세금의 반영 방식은 AWS 청구 설정에 따라 실제 청구서와 다를 수 있습니다.</p>
+              </>}
+            </section>
           ) : path === "/sources" ? (
             <>
               <div className="sources-intro">

@@ -17,6 +17,7 @@ from .service import demo_events, overview
 from .store import Store, NAMES
 from .security import PrivateAccess
 from .transfer import Receiver, Batch, Finish
+from .aws_costs import monthly_costs
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -138,6 +139,10 @@ def create_app(store=None):
     @app.get('/api/v1/health')
     def health():
         return {'status': 'ok', 'version': '0.2.0', 'local_only': deployment == 'local', 'deployment': deployment}
+
+    @app.get('/api/v1/aws-costs')
+    def aws_costs():
+        return monthly_costs()
 
     @app.get('/api/v1/session')
     def session():
